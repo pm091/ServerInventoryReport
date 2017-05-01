@@ -52,7 +52,7 @@ $PowerShell.Runspace = $RunSpace
     #endregion Load Assemblies
 
     #region User Defined Variables
-    $SQLServer = 'vSQL'
+    $SQLServer = 'mdt01'
     ## Update Tables to include to new tables added to SQL so UI controls will be auto generated at runtime
     $Script:Tables = 'tbGeneral','tbOperatingSystem','tbMemory','tbProcessor','tbUsers','tbGroups',
     'tbDrives','tbAdminShare','tbUserShare','tbServerRoles','tbSoftware','tbScheduledTasks','tbUpdates'
@@ -467,7 +467,7 @@ $PowerShell.Runspace = $RunSpace
         )]
         Param (
             [parameter()]
-            [string]$Computername = 'vSQL',
+            [string]$Computername = 'mdt01',
         
             [parameter()]
             [string]$Database = 'Master',    

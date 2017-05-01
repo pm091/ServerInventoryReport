@@ -1,6 +1,6 @@
 Param (
     [parameter()]
-    $SQLServer = 'vSQL'
+    $SQLServer = 'mdt01'
 )
 #region Helper Functions
 function Out-DataTable {
@@ -172,7 +172,7 @@ Function Invoke-SQLCmd {
     )]
     Param (
         [parameter()]
-        [string]$Computername = 'vSQL',
+        [string]$Computername = 'mdt01',
         
         [parameter()]
         [string]$Database = 'Master',    
@@ -266,6 +266,37 @@ Function Invoke-SQLCmd {
     Write-Verbose "Closing connection"
     $Connection.Close()        
     #endregion Close connection
+}
+
+Function Get-ActivtionStatus{
+	[CmdletBinding()]
+	param(
+	[Parameter(ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+	[string[]] $Computername = $Computername
+	)
+	$WMIPARAMS = @{
+		
+		ComputerName = $Computername
+		class = "Softwarelicensingproduct"
+	}
+Function Convert-LicenseStatus{
+		param ($licensestatus)
+		$list = New-Object System.Collections.ArrayList
+		switch ($licensestatus)
+		{
+			0{ 'Unlicensed' }
+			1{ 'Licensed' }
+			2{ 'Out-Of-Box Grace Period' }
+			3{ 'Out-Of-Tolerance Grace Period' }
+			4{ 'Non-Genuine Grace Period' }
+			5{ 'Notification' }
+			6{ 'Extended Grace' }
+			default { 'undetected' }
+		}
+		$List
+	}
+	Get-WmiObject @WMIParams | Where PartialProductKey | select PSComputerName, Name,
+	@{ L = 'LicenseStatus'; E = { (Convert-LicenseStatus -licensestatus $_.LicenseStatus[0]) } }
 }
 
 Function Get-LocalUser {
@@ -691,7 +722,7 @@ Function Get-ScheduledTask {
 $InventoryDate = Get-Date
 $ServerGroup = 'MemberServer'
 
-Get-Server -MemberServer | Start-RSJob -Name {$_} -FunctionsToLoad Get-ScheduledTask, Invoke-SQLCmd,Get-LocalGroup,Get-LocalUser,Get-SecurityUpdate,
+Get-Server -MemberServer | Start-RSJob -Name {$_} -FunctionsToLoad  Get-ActivtionStatus, Get-ScheduledTask, Invoke-SQLCmd,Get-LocalGroup,Get-LocalUser,Get-SecurityUpdate,
     Get-Software,Get-AdminShare,Get-UserShareDACL,Convert-ChassisType,Write-DataTable, Out-DataTable -ScriptBlock {
     Write-Verbose "[$($_)] - Initializing" -Verbose
     #region Variables
@@ -852,7 +883,25 @@ Get-Server -MemberServer | Start-RSJob -Name {$_} -FunctionsToLoad Get-Scheduled
         0x0 = 'ClusterGroupPreventFailback'
         0x1 = 'ClusterGroupAllowFailback'
     }
-    #endregion Lookups
+	#endregion Lookups
+	
+	#region ActivationStatus
+	$ActivationStatus = Get-ActivtionStatus -Computername $Computername -ErrorAction Stop | foreach {
+		[pscustomobject]@{
+			
+			ComputerName = $_.pscomputername
+			Name = $_.Name
+			Status = $_.LicenseStatus
+			IventoryDate = $Date
+		}
+	}
+	if ($ActivationStatus){
+		$SQLParams.TSQL = "DELETE FROM tbActivationStatus WHERE Computername = @Computername"
+		Invoke-Sqlcmd @SQLParams
+		$DataTable = $ActivationStatus | Out-DataTable
+		Write-DataTable -Computername $using:SQLServer -Database ServerInventory -TableName tbActivationStatus -Data $DataTable -ErrorAction Stop
+	}
+	#endregion ActivationStatus
     
     #region General
     Try {

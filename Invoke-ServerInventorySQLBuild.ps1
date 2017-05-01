@@ -1,7 +1,7 @@
 ﻿[cmdletbinding(
 )]
 Param (
-        [string]$Computername = 'vsql',
+        [string]$Computername = 'mdt01',
         
         [parameter()]
         [string]$Database = 'Master'       
@@ -15,7 +15,7 @@ Function Invoke-SQLCmd {
     )]
     Param (
         [parameter()]
-        [string]$Computername = 'vsql',
+        [string]$Computername = 'mdt01',
         
         [parameter()]
         [string]$Database = 'Master',    
@@ -106,7 +106,7 @@ Function Invoke-SQLCmd {
 
 #region Check/Create for database
 $Database = 'ServerInventory'
-$Computername = 'vsql'
+$Computername = 'mdt01'
 $SQLParams = @{
     Computername = $Computername
     Database = 'Master'
@@ -552,4 +552,28 @@ If ($Results.Name -eq $Null) {
     Invoke-SQLCmd @SQLParams
 }
 #endregion #region Services Table
+
+#region ActivtionStatus Table
+$Table = 'tbActivationStatus'
+$SQLParams.CommandType = 'Query'
+$SQLParams.SQLParameter = @{
+	'@TableName' = $Table
+}
+$SQLParams.Database = 'ServerInventory'
+$SQLParams.TSQL = "SELECT TABLE_NAME AS Name FROM information_schema.tables WHERE TABLE_NAME = @TableName"
+$Results = Invoke-SQLCmd @SQLParams
+If ($Results.Name -eq $Null)
+{
+	#Create the table
+	$SQLParams.Remove('SQLParameter')
+	$SQLParams.CommandType = 'NonQuery'
+	$SQLParams.TSQL = "CREATE TABLE $Table  (        
+        ComputerName nvarchar (256), 
+        Name nvarchar (256),
+        Status nvarchar (50),
+        InventoryDate datetime
+    )"
+	Invoke-SQLCmd @SQLParams
+}
+#endregion ActivationStatus Table
 #endregion Create Tables
