@@ -1,7 +1,7 @@
-﻿[cmdletbinding(
+[cmdletbinding(
 )]
 Param (
-        [string]$Computername = 'mdt01',
+        [string]$Computername = "$env:computername",
         
         [parameter()]
         [string]$Database = 'Master'       
@@ -15,7 +15,7 @@ Function Invoke-SQLCmd {
     )]
     Param (
         [parameter()]
-        [string]$Computername = 'mdt01',
+        [string]$Computername = "$env:computername",
         
         [parameter()]
         [string]$Database = 'Master',    
@@ -106,7 +106,7 @@ Function Invoke-SQLCmd {
 
 #region Check/Create for database
 $Database = 'ServerInventory'
-$Computername = 'mdt01'
+$Computername = "$env:computername"
 $SQLParams = @{
     Computername = $Computername
     Database = 'Master'
@@ -299,6 +299,7 @@ If ($Results.Name -eq $Null) {
     Invoke-SQLCmd @SQLParams
 }
 #endregion Drives Table
+
 
 #region AdminShare Table
 $Table = 'tbAdminShare'
@@ -576,4 +577,64 @@ If ($Results.Name -eq $Null)
 	Invoke-SQLCmd @SQLParams
 }
 #endregion ActivationStatus Table
+
+#region Printer Table
+
+$Table = 'tbPrinters'
+$SQLParams.CommandType = 'Query'
+$SQLParams.SQLParameter = @{
+	'@TableName' = $Table
+}
+$SQLParams.Database = 'ServerInventory'
+$SQLParams.TSQL = "SELECT TABLE_NAME AS Name FROM information_schema.tables WHERE TABLE_NAME = @TableName"
+$Results = Invoke-SQLCmd @SQLParams
+If ($Results.Name -eq $Null)
+{
+	#Create the table
+	$SQLParams.Remove('SQLParameter')
+	$SQLParams.CommandType = 'NonQuery'
+	$SQLParams.TSQL = "CREATE TABLE $Table  (        
+        ComputerName 	nvarchar (256), 
+        PrinterName 	nvarchar (256),
+        PrinterPort 	nvarchar (256),
+        Shared			nvarchar (256),
+        Sharename 		nvarchar (256),
+        State 			nvarchar (256),
+        Capability 		nvarchar (256),
+		PaperSizes	 	nvarchar(256),
+        InventoryDate datetime
+    )"
+	Invoke-SQLCmd @SQLParams
+}
+
+#endregion Ptinter Table 
+
+#region Drive Asset
+
+$Table = 'tbDiskAsset'
+$SQLParams.CommandType = 'Query'
+$SQLParams.SQLParameter = @{
+    '@TableName' = $Table
+}
+$SQLParams.Database = 'ServerInventory'    
+$SQLParams.TSQL = "SELECT TABLE_NAME AS Name FROM information_schema.tables WHERE TABLE_NAME = @TableName"
+$Results = Invoke-SQLCmd @SQLParams
+If ($Results.Name -eq $Null) {
+    #Create the table
+    $SQLParams.Remove('SQLParameter')
+    $SQLParams.CommandType='NonQuery'
+    $SQLParams.TSQL = "CREATE TABLE $Table  ( 
+    	ComputerName 	nvarchar (256),    
+        DriveModel nvarchar (256), 
+        DriveDescription nvarchar(256), 
+        FirmwareRevision nvarchar (256),
+        InterFaceType nvarchar (256), 
+        SerialNumber nvarchar (256),
+        InventoryDate datetime
+    )"
+    Invoke-SQLCmd @SQLParams
+}
+#endregion Drive Asset
+
+
 #endregion Create Tables

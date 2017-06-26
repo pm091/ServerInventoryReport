@@ -2,6 +2,13 @@ Param (
     [parameter()]
     $SQLServer = 'mdt01'
 )
+
+#region Import PoshRSJob
+
+Import-Module C:\ServerInventoryReport\PoshRSJob\PoshRSJob.psd1
+
+#endregion Import PoshRSJob
+
 #region Helper Functions
 function Out-DataTable {
     [CmdletBinding()]
@@ -138,7 +145,9 @@ Function Get-Server {
         [parameter(ParameterSetName='DomainController')]
         [switch]$DomainController,
         [parameter(ParameterSetName='MemberServer')]
-        [switch]$MemberServer
+		[switch]$MemberServer,
+		[parameter(ParameterSetName = 'LocalSite')]
+		[switch]$LocalSite
     )
     Write-Verbose "Parameter Set: $($PSCmdlet.ParameterSetName)"
     Switch ($PSCmdlet.ParameterSetName) {
@@ -150,9 +159,12 @@ Function Get-Server {
         }
         'MemberServer' {
             $ldapFilter = "(&(objectCategory=computer)(OperatingSystem=Windows*Server*)(!(userAccountControl:1.2.840.113556.1.4.803:=8192)))"
-        }
-    }
-    $searcher = [adsisearcher]""
+		}
+		'LocalSite'{
+			$ldapFilter = "(&(objectcategory=computer)(Name=$($env:COMPUTERNAME.split("-")[0])*))"
+		}
+	}
+	$searcher = [adsisearcher]""
     $Searcher.Filter = $ldapFilter
     $Searcher.pagesize = 10
     $searcher.sizelimit = 5000
@@ -172,7 +184,7 @@ Function Invoke-SQLCmd {
     )]
     Param (
         [parameter()]
-        [string]$Computername = 'mdt01',
+        [string]$Computername = "$env:computername",
         
         [parameter()]
         [string]$Database = 'Master',    
@@ -267,6 +279,171 @@ Function Invoke-SQLCmd {
     $Connection.Close()        
     #endregion Close connection
 }
+
+Function Get-PrinterAsset {
+	[cmdletbinding()]
+	Param(
+	[Parameter(ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+	[String[]] $Computername = $Computername
+	)
+	
+	$WMIParams = @{
+	
+		Computername = $Computername
+		class = "win32_printer"
+	}
+Function Convert-PrinterState
+{
+		param ($PrinterState)	
+		$list = New-Object System.Collections.ArrayList
+		switch ($PrinterState)
+		{
+		0 {'Idle'}
+		1 {'Paused'}
+		2 {'Error'}
+		3 {'Pending Deletion'}
+		4 {'Paper Jam'}
+		5 {'Paper Out'}
+		6 {'Manual Feed'}
+		7 {'Paper Problem'}
+		8 {'Offline'}
+		9 {'I/O Active'}
+		10 {'Busy'}
+		11 {'Printing'}
+		12 {'Output Bin Full'}
+		13 {'Not Available'}
+		14 {'Waiting'}
+		15 {'Processing'}
+		16 {'Initialization'}
+		17 {'Warming Up'}
+		18 {'Toner Low'}
+		19 {'No Toner'}
+		20 {'Page Punt'}
+		21 {'User Intervention Required'}
+		22 {'Out of Memory'}
+		23 {'Door Open'}
+		24 {'Server_Unknown'}
+		25 {'Power Save'}
+		}
+		$list
+		}
+Function Convert-PrinterCapabilityDescriptions{
+			param($Capabilitydescriptions)
+			$list = New-Object System.Collections.ArrayList
+			switch($capabilitydescriptions)
+			{
+			($capabilitydescriptions -band 0) {[void]$List.Add('Unknown')}
+			($capabilitydescriptions -band 1) {[void]$List.Add('Other')}															
+			($capabilitydescriptions -band 2) {[void]$List.Add('Color Printing')}	
+			($capabilitydescriptions -band 3) {[void]$List.Add('Duplex Printing')}	
+			($capabilitydescriptions -band 4) {[void]$List.Add('Copies')}	
+			($capabilitydescriptions -band 5) {[void]$List.Add('Collation')}	
+			($capabilitydescriptions -band 6) {[void]$List.Add('Stapling')}	
+			($capabilitydescriptions -band 7) {[void]$List.Add('Transparency Printing')}	
+			($capabilitydescriptions -band 8) {[void]$List.Add('Punch')}	
+			($capabilitydescriptions -band 9) {[void]$List.Add('Cover')}	
+			($capabilitydescriptions -band 10) {[void]$List.Add('Bind')}	
+			($capabilitydescriptions -band 11) {[void]$List.Add('Black and White Printing')}	
+			($capabilitydescriptions -band 12) {[void]$List.Add('One Sided')}	
+			($capabilitydescriptions -band 13) {[void]$List.Add('Two Sided Long Edge')}	
+			($capabilitydescriptions -band 14) {[void]$List.Add('Two Sided Short Edge')}	
+			($capabilitydescriptions -band 15) {[void]$List.Add('Portrait')}	
+			($capabilitydescriptions -band 16) {[void]$List.Add('Landscape')}	
+			($capabilitydescriptions -band 17) {[void]$List.Add('Reverse Landscape')}	
+			($capabilitydescriptions -band 18) {[void]$List.Add('Reverse Portrait')}	
+			($capabilitydescriptions -band 19) {[void]$List.Add('Quality High')}	
+			($capabilitydescriptions -band 20) {[void]$List.Add('Quality Normal')}	
+			($capabilitydescriptions -band 21) {[void]$List.Add('Quality Low')}	
+			}
+			$list -join '; '
+			}
+			
+Function Convert-SupportedPaperSize{
+			param($PaperSizesSupported)
+			$list = New-Object System.Collections.ArrayList
+			switch($PaperSizesSupported)
+			{
+			($PaperSizesSupported -band 1) {[void]$List.Add('Unkown')}
+			($PaperSizesSupported -band 2) {[void]$List.Add('A')}
+			($PaperSizesSupported -band 3) {[void]$List.Add('B')}
+			($PaperSizesSupported -band 4) {[void]$List.Add('C')}
+			($PaperSizesSupported -band 5) {[void]$List.Add('D')}
+			($PaperSizesSupported -band 6) {[void]$List.Add('E')}
+			($PaperSizesSupported -band 7) {[void]$List.Add('Letter')}
+			($PaperSizesSupported -band 8) {[void]$List.Add('Legal')}
+			($PaperSizesSupported -band 9) {[void]$List.Add('NA-10x13-Envelope')}
+			($PaperSizesSupported -band 10) {[void]$List.Add('NA-9x12-Envelope')}
+			($PaperSizesSupported -band 11) {[void]$List.Add('NA-Number-10-Envelope')}
+			($PaperSizesSupported -band 12) {[void]$List.Add('NA-7x9-Envelope')}
+			($PaperSizesSupported -band 13) {[void]$List.Add('NA-9x11-Envelope')}
+			($PaperSizesSupported -band 14) {[void]$List.Add('NA-10x14-Envelope')}
+			($PaperSizesSupported -band 15) {[void]$List.Add('NA-Number-9-Envelope')}
+			($PaperSizesSupported -band 16) {[void]$List.Add('NA-6x9-Envelope')}
+			($PaperSizesSupported -band 17) {[void]$List.Add('NA-10x15-Envelope')}
+			($PaperSizesSupported -band 18) {[void]$List.Add('A0')}
+			($PaperSizesSupported -band 19) {[void]$List.Add('A1')}
+			($PaperSizesSupported -band 20) {[void]$List.Add('A2')}
+			($PaperSizesSupported -band 21) {[void]$List.Add('A3')}
+			($PaperSizesSupported -band 22) {[void]$List.Add('A4')}
+			($PaperSizesSupported -band 23) {[void]$List.Add('A5')}
+			($PaperSizesSupported -band 24) {[void]$List.Add('A6')}
+			($PaperSizesSupported -band 25) {[void]$List.Add('A7')}
+			($PaperSizesSupported -band 26) {[void]$List.Add('A8')}
+			($PaperSizesSupported -band 28) {[void]$List.Add('A9A10')}
+			($PaperSizesSupported -band 29) {[void]$List.Add('B0')}
+			($PaperSizesSupported -band 30) {[void]$List.Add('B1')}
+			($PaperSizesSupported -band 31) {[void]$List.Add('B2')}
+			($PaperSizesSupported -band 32) {[void]$List.Add('B3')}
+			($PaperSizesSupported -band 33) {[void]$List.Add('B4')}
+			($PaperSizesSupported -band 34) {[void]$List.Add('B5')}
+			($PaperSizesSupported -band 35) {[void]$List.Add('B6')}
+			($PaperSizesSupported -band 36) {[void]$List.Add('B7')}
+			($PaperSizesSupported -band 37) {[void]$List.Add('B8')}
+			($PaperSizesSupported -band 38) {[void]$List.Add('B9')}
+			($PaperSizesSupported -band 39) {[void]$List.Add('B10')}
+			($PaperSizesSupported -band 40) {[void]$List.Add('C0')}
+			($PaperSizesSupported -band 41) {[void]$List.Add('C1')}
+			($PaperSizesSupported -band 42) {[void]$List.Add('C2C3')}
+			($PaperSizesSupported -band 43) {[void]$List.Add('C4')}
+			($PaperSizesSupported -band 44) {[void]$List.Add('C5')}
+			($PaperSizesSupported -band 45) {[void]$List.Add('C6')}
+			($PaperSizesSupported -band 46) {[void]$List.Add('C7')}
+			($PaperSizesSupported -band 47) {[void]$List.Add('C8')}
+			($PaperSizesSupported -band 48) {[void]$List.Add('ISO-Designated')}
+			($PaperSizesSupported -band 49) {[void]$List.Add('JIS B0')}
+			($PaperSizesSupported -band 50) {[void]$List.Add('JIS B1')}
+			($PaperSizesSupported -band 51) {[void]$List.Add('JIS B2')}
+			($PaperSizesSupported -band 52) {[void]$List.Add('JIS B3')}
+			($PaperSizesSupported -band 53) {[void]$List.Add('JIS B4')}
+			($PaperSizesSupported -band 54) {[void]$List.Add('JIS B5')}
+			($PaperSizesSupported -band 55) {[void]$List.Add('JIS B6')}
+			($PaperSizesSupported -band 56) {[void]$List.Add('JIS B7')}
+			($PaperSizesSupported -band 57) {[void]$List.Add('JIS B8')}
+			($PaperSizesSupported -band 58) {[void]$List.Add('JIS B9')}
+			($PaperSizesSupported -band 59) {[void]$List.Add('JIS B10')}
+			($PaperSizesSupported -band 60) {[void]$List.Add('NA-Letter')}
+			($PaperSizesSupported -band 61) {[void]$List.Add('NA-Legal')}
+			($PaperSizesSupported -band 62) {[void]$List.Add('B4-Envelope')}
+			($PaperSizesSupported -band 63) {[void]$List.Add('B5-Envelope')}
+			($PaperSizesSupported -band 64) {[void]$List.Add('C3-Envelope')}
+			($PaperSizesSupported -band 65) {[void]$List.Add('C4-Envelope')}
+			($PaperSizesSupported -band 66) {[void]$List.Add('C5-Envelope')}
+			($PaperSizesSupported -band 67) {[void]$List.Add('C6-Envelope')}
+			($PaperSizesSupported -band 68) {[void]$List.Add('Designated-Long-Envelope')}
+			($PaperSizesSupported -band 69) {[void]$List.Add('Monarch-Envelope')}
+			($PaperSizesSupported -band 70) {[void]$List.Add('Executive')}
+			($PaperSizesSupported -band 71) {[void]$List.Add('Folio')}
+			($PaperSizesSupported -band 72) {[void]$List.Add('Invoice')}
+			($PaperSizesSupported -band 73) {[void]$List.Add('Ledger')}
+			}
+			$list -join '; '
+			}			
+			
+		Get-WmiObject @WMIPARAMS | select pscomputername,Name,PortName,Shared,ShareName,
+		@{L = 'State'; E = {(Convert-PrinterState -PrinterState $_.PrinterState[0])} },
+		@{ L = 'Capabilities'; E = {(Convert-PrinterCapabilityDescriptions -Capabilitydescriptions $_.Capabilities[0])}},
+		@{ L = 'PaperSizesSupported'; E = {(Convert-SupportedPaperSize -PaperSizesSupported $_.PaperSizesSupported[0])}}
+		}
 
 Function Get-ActivtionStatus{
 	[CmdletBinding()]
@@ -722,7 +899,7 @@ Function Get-ScheduledTask {
 $InventoryDate = Get-Date
 $ServerGroup = 'MemberServer'
 
-Get-Server -MemberServer | Start-RSJob -Name {$_} -FunctionsToLoad  Get-ActivtionStatus, Get-ScheduledTask, Invoke-SQLCmd,Get-LocalGroup,Get-LocalUser,Get-SecurityUpdate,
+Get-Server -LocalSite | Start-RSJob -Name {$_} -FunctionsToLoad  Get-ActivtionStatus,Get-PrinterAsset, Get-ScheduledTask, Invoke-SQLCmd,Get-LocalGroup,Get-LocalUser,Get-SecurityUpdate,
     Get-Software,Get-AdminShare,Get-UserShareDACL,Convert-ChassisType,Write-DataTable, Out-DataTable -ScriptBlock {
     Write-Verbose "[$($_)] - Initializing" -Verbose
     #region Variables
@@ -899,9 +1076,34 @@ Get-Server -MemberServer | Start-RSJob -Name {$_} -FunctionsToLoad  Get-Activtio
 		$SQLParams.TSQL = "DELETE FROM tbActivationStatus WHERE Computername = @Computername"
 		Invoke-Sqlcmd @SQLParams
 		$DataTable = $ActivationStatus | Out-DataTable
-		Write-DataTable -Computername $using:SQLServer -Database ServerInventory -TableName tbActivationStatus -Data $DataTable -ErrorAction Stop
+		Write-DataTable -Computername $Using:SQLServer -Database ServerInventory -TableName tbActivationStatus -Data $DataTable -ErrorAction Stop
 	}
 	#endregion ActivationStatus
+    
+    #region PrinterAsset
+    
+    $PrinterAsset = Get-PrinterAsset -Computername $Computername -ErrorAction Silentlycontinue | foreach {
+		[pscustomobject]@{
+			
+			ComputerName = $_.pscomputername
+			PrinterName = $_.Name
+			PrinterPort = $_.PortName
+			Shared 		= $_.Shared
+			ShareName 	= $_.ShareName
+			State 		= $_.State
+			Capability 	= $_.Capabilities
+			PaperSizes 	= $_.PaperSizesSupported
+			IventoryDate = $Date
+		}
+	}
+	if ($PrinterAsset){
+		$SQLParams.TSQL = "DELETE FROM tbprinters WHERE Computername = @Computername"
+		Invoke-Sqlcmd @SQLParams
+		$DataTable = $PrinterAsset | Out-DataTable
+		Write-DataTable -Computername $Using:SQLServer -Database ServerInventory -TableName tbprinters -Data $DataTable -ErrorAction Silentlycontinue
+	}
+    
+    #endregion PrinterAsset
     
     #region General
     Try {
@@ -923,21 +1125,11 @@ Get-Server -MemberServer | Start-RSJob -Name {$_} -FunctionsToLoad  Get-Activtio
             InventoryDate = $Date
         }
         If ($General) {
-            Write-Verbose "[$Computername - $(Get-Date)] Removing old data" -Verbose
-            $SQLParams.CommandType = 'NonQuery'
-            $SQLParams.TSQL = "DELETE FROM tbGeneral WHERE Computername = @Computername"            
-            Invoke-SQLCmd @SQLParams
-            If ($Return.DefaultView) {
-                Write-Verbose "[$Computername - $(Get-Date)] Throwing error" -Verbose
-                Throw 'FAIL'
-            }
-            Else {
                 $SQLParams.CommandType = 'NonQuery'
                 $DataTable = $General | Out-DataTable
                 Write-Verbose "[$Computername - $(Get-Date)] Updating data" -Verbose
                 Write-DataTable -Computername $Using:SQLServer -Database ServerInventory -TableName tbGeneral -Data $DataTable -ErrorAction Stop
             }
-        }
     }
     Catch {
         Write-Verbose "WARNING - [$Computername - $(Get-Date)]" -Verbose
@@ -1064,6 +1256,29 @@ Get-Server -MemberServer | Start-RSJob -Name {$_} -FunctionsToLoad  Get-Activtio
         Write-DataTable -Computername $Using:SQLServer -Database ServerInventory -TableName tbDrives -Data $DataTable
     }
     #endregion Drives
+
+	#region Drive Asset
+	
+	$DiskAsset =  @(Get-WmiObject Win32_DiskDrive -ComputerName $Computername -ErrorAction stop | foreach{
+		[pscustomobject]@{
+		ComputerName = $Computername
+		DriveModel = $_.caption
+		DriveDescription = $_.Description
+		FirmwareRevision = $_.FirmwareRevision
+		InterFaceType = $_.InterfaceType
+		SerialNumber = $_.SerialNumber
+		InventoryDate = $Date	
+		}
+	})
+	
+	if($DiskAsset) {
+	$SQLParams.TSQL = "DELETE FROM tbDiskAsset WHERE Computername = @Computername"
+        Invoke-SQLCmd @SQLParams
+        $DataTable = $DiskAsset | Out-DataTable
+        Write-DataTable -Computername $Using:SQLServer -Database ServerInventory -TableName tbDiskAsset -Data $DataTable
+	}
+	
+	#endregion Drive Asset
 
     #region AdminShares
     $AdminShare = @(Get-AdminShare -Computername $Computername -ErrorAction Stop | ForEach {
@@ -1196,5 +1411,5 @@ Get-Server -MemberServer | Start-RSJob -Name {$_} -FunctionsToLoad  Get-Activtio
         Write-DataTable -Computername $Using:SQLServer -Database ServerInventory -TableName tbUpdates -Data $DataTable
     }
     #endregion Updates
-} | Wait-RSJob -ShowProgress | Remove-RSJob
+} | Wait-RSJob -ShowProgress 
 #endregion Data Gathering

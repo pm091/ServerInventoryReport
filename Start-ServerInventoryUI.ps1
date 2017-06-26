@@ -1,4 +1,4 @@
-﻿<#
+<#
     .SYNOPSIS
         Presents a GUI to users that automatically connects to a SQL database to display
         a server inventory report.
@@ -52,9 +52,9 @@ $PowerShell.Runspace = $RunSpace
     #endregion Load Assemblies
 
     #region User Defined Variables
-    $SQLServer = 'mdt01'
+    $SQLServer = "$env:computername"
     ## Update Tables to include to new tables added to SQL so UI controls will be auto generated at runtime
-    $Script:Tables = 'tbGeneral','tbOperatingSystem','tbActivationStatus','tbMemory','tbProcessor','tbNetwork','tbUsers','tbGroups',
+    $Script:Tables = 'tbGeneral','tbOperatingSystem','tbActivationStatus','tbMemory','tbProcessor','tbPrinters','tbNetwork','tbUsers','tbGroups',
     'tbDrives','tbAdminShare','tbUserShare','tbServerRoles','tbSoftware','tbScheduledTasks','tbUpdates'
     #endregion User Defined Variables
 
